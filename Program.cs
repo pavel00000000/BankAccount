@@ -22,6 +22,80 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 
+
+Bank bank = new Bank();
+bank.LoadAccountsState();
+
+while (true)
+{
+    Console.WriteLine("1 - Создать счет");
+    Console.WriteLine("2 - Пополнить счет");
+    Console.WriteLine("3 - Снять со счета");
+    Console.WriteLine("4 - Перевести средства");
+    Console.WriteLine("5 - Показать информацию о счете");
+    Console.WriteLine("6 - Выход");
+    Console.Write("Введите номер команды: ");
+    string command = Console.ReadLine();
+
+    switch (command)
+    {
+        case "1":
+            Console.Write("Введите номер счета: ");
+            string accountNumber = Console.ReadLine();
+            Console.Write("Введите имя владельца: ");
+            string owner = Console.ReadLine();
+            BankAccount newAccount = new BankAccount { AccountNumber = accountNumber, Owner = owner, Balance = 0 };
+            bank.OpenAccount(newAccount);
+            break;
+
+        case "2":
+            Console.Write("Введите номер счета: ");
+            accountNumber = Console.ReadLine();
+            Console.Write("Введите сумму для пополнения: ");
+            decimal amount = decimal.Parse(Console.ReadLine());
+            BankAccount account = bank.GetAccountByNumber(accountNumber);
+            if (account != null) bank.Deposit(account, amount);
+            break;
+
+        case "3":
+            Console.Write("Введите номер счета: ");
+            accountNumber = Console.ReadLine();
+            Console.Write("Введите сумму для снятия: ");
+            amount = decimal.Parse(Console.ReadLine());
+            account = bank.GetAccountByNumber(accountNumber);
+            if (account != null) bank.Withdraw(account, amount);
+            break;
+
+        case "4":
+            Console.Write("Введите номер счета, с которого хотите перевести средства: ");
+            string fromAccountNumber = Console.ReadLine();
+            Console.Write("Введите номер счета, на который хотите перевести средства: ");
+            string toAccountNumber = Console.ReadLine();
+            Console.Write("Введите сумму для перевода: ");
+            amount = decimal.Parse(Console.ReadLine());
+            BankAccount fromAccount = bank.GetAccountByNumber(fromAccountNumber);
+            BankAccount toAccount = bank.GetAccountByNumber(toAccountNumber);
+            if (fromAccount != null && toAccount != null) bank.Transfer(fromAccount, toAccount, amount);
+            break;
+
+        case "5":
+            Console.Write("Введите номер счета: ");
+            accountNumber = Console.ReadLine();
+            account = bank.GetAccountByNumber(accountNumber);
+            if (account != null) bank.PrintAccountInfo(account);
+            break;
+
+        case "6":
+            Environment.Exit(0);
+            break;
+
+        default:
+            Console.WriteLine("Неизвестная команда.");
+            break;
+    }
+}
+
+
 public class BankAccount
 {
     public string AccountNumber { get; set; }
@@ -33,16 +107,26 @@ public class Bank
 {
     private List<BankAccount> accounts = new List<BankAccount>();
 
+    public BankAccount GetAccountByNumber(string accountNumber)
+    {
+        return accounts.FirstOrDefault(a => a.AccountNumber == accountNumber);
+    }
+
+
     public void OpenAccount(BankAccount newAccount)
     {
         accounts.Add(newAccount);
-        // Здесь нужно вызвать функцию сохранения состояния счетов
+
+        SaveAccountsState();
+
     }
 
     public void Deposit(BankAccount account, decimal amount)
     {
         account.Balance += amount;
-        // Здесь нужно вызвать функцию сохранения состояния счетов
+
+        SaveAccountsState();
+
     }
 
     public void Withdraw(BankAccount account, decimal amount)
@@ -50,7 +134,9 @@ public class Bank
         if (account.Balance >= amount)
         {
             account.Balance -= amount;
-            // Здесь нужно вызвать функцию сохранения состояния счетов
+
+            SaveAccountsState();
+
         }
         else
         {
@@ -64,7 +150,10 @@ public class Bank
         {
             fromAccount.Balance -= amount;
             toAccount.Balance += amount;
-            // Здесь нужно вызвать функцию сохранения состояния счетов
+
+
+            SaveAccountsState();
+
         }
         else
         {
@@ -77,5 +166,21 @@ public class Bank
         Console.WriteLine($"Номер счета: {account.AccountNumber}, Владелец: {account.Owner}, Баланс: {account.Balance}");
     }
 
-    // Здесь должны быть реализованы функции загрузки и сохранения состояния счетов
+    public void SaveAccountsState()
+    {
+        string json = JsonSerializer.Serialize(accounts);
+        File.WriteAllText("accounts.json", json);
+    }
+
+    public void LoadAccountsState()
+    {
+        if (File.Exists("accounts.json"))
+        {
+            string json = File.ReadAllText("accounts.json");
+            accounts = JsonSerializer.Deserialize<List<BankAccount>>(json);
+        }
+    }
+
+
+
 }
