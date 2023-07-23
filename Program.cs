@@ -11,8 +11,8 @@
 //"Выход" - завершение работы приложения.
 //Каждое изменение в состоянии банковских счетов должно быть сохранено в файле (например, в формате List) с использованием библиотеки для работы с файлами, такой как System.IO.
 //При запуске приложения, оно должно загружать ранее сохраненное состояние счетов из файла (если такой файл есть) и предоставлять возможность продолжить работу с ними.
-
 //Бонусные задания:
+
 //Реализуйте возможность удаления счетов.
 //Добавьте проверку на недостаточность средств при списании.
 //Обеспечьте валидацию вводимых данных пользователя и информативные сообщения об ошибках. разбей задачу на полдзадачи
@@ -20,36 +20,113 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
+using System.Text.Json;
 
-public interface IBank
+
+Bank bank = new Bank();
+bank.LoadAccountsState();
+
+while (true)
 {
-    void OpenAccount(BankAccount newAccount);
-    void Deposit(BankAccount account, decimal amount);
-    void Withdraw(BankAccount account, decimal amount);
-    void Transfer(BankAccount fromAccount, BankAccount toAccount, decimal amount);
-    void PrintAccountInfo(BankAccount account);
+    Console.WriteLine("1 - Создать счет");
+    Console.WriteLine("2 - Пополнить счет");
+    Console.WriteLine("3 - Снять со счета");
+    Console.WriteLine("4 - Перевести средства");
+    Console.WriteLine("5 - Показать информацию о счете");
+    Console.WriteLine("6 - Выход");
+    Console.Write("Введите номер команды: ");
+    string command = Console.ReadLine();
+
+    switch (command)
+    {
+        case "1":
+            Console.Write("Введите номер счета: ");
+            string accountNumber = Console.ReadLine();
+            Console.Write("Введите имя владельца: ");
+            string owner = Console.ReadLine();
+            BankAccount newAccount = new BankAccount { AccountNumber = accountNumber, Owner = owner, Balance = 0 };
+            bank.OpenAccount(newAccount);
+            break;
+
+        case "2":
+            Console.Write("Введите номер счета: ");
+            accountNumber = Console.ReadLine();
+            Console.Write("Введите сумму для пополнения: ");
+            decimal amount = decimal.Parse(Console.ReadLine());
+            BankAccount account = bank.GetAccountByNumber(accountNumber);
+            if (account != null) bank.Deposit(account, amount);
+            break;
+
+        case "3":
+            Console.Write("Введите номер счета: ");
+            accountNumber = Console.ReadLine();
+            Console.Write("Введите сумму для снятия: ");
+            amount = decimal.Parse(Console.ReadLine());
+            account = bank.GetAccountByNumber(accountNumber);
+            if (account != null) bank.Withdraw(account, amount);
+            break;
+
+        case "4":
+            Console.Write("Введите номер счета, с которого хотите перевести средства: ");
+            string fromAccountNumber = Console.ReadLine();
+            Console.Write("Введите номер счета, на который хотите перевести средства: ");
+            string toAccountNumber = Console.ReadLine();
+            Console.Write("Введите сумму для перевода: ");
+            amount = decimal.Parse(Console.ReadLine());
+            BankAccount fromAccount = bank.GetAccountByNumber(fromAccountNumber);
+            BankAccount toAccount = bank.GetAccountByNumber(toAccountNumber);
+            if (fromAccount != null && toAccount != null) bank.Transfer(fromAccount, toAccount, amount);
+            break;
+
+        case "5":
+            Console.Write("Введите номер счета: ");
+            accountNumber = Console.ReadLine();
+            account = bank.GetAccountByNumber(accountNumber);
+            if (account != null) bank.PrintAccountInfo(account);
+            break;
+
+        case "6":
+            Environment.Exit(0);
+            break;
+
+        default:
+            Console.WriteLine("Неизвестная команда.");
+            break;
+    }
 }
+
 
 public class BankAccount
 {
-    public string? AccountNumber { get; set; }
+    public string AccountNumber { get; set; }
     public decimal Balance { get; set; }
-    public string? Owner { get; set; }
+    public string Owner { get; set; }
 }
 
-public class Bank : IBank
+public class Bank
 {
-    public List<BankAccount> accounts = new List<BankAccount>();
+    private List<BankAccount> accounts = new List<BankAccount>();
+
+    public BankAccount GetAccountByNumber(string accountNumber)
+    {
+        return accounts.FirstOrDefault(a => a.AccountNumber == accountNumber);
+    }
+
 
     public void OpenAccount(BankAccount newAccount)
     {
         accounts.Add(newAccount);
+
+        SaveAccountsState();
+
     }
 
     public void Deposit(BankAccount account, decimal amount)
     {
         account.Balance += amount;
+
+        SaveAccountsState();
+
     }
 
     public void Withdraw(BankAccount account, decimal amount)
@@ -57,6 +134,9 @@ public class Bank : IBank
         if (account.Balance >= amount)
         {
             account.Balance -= amount;
+
+            SaveAccountsState();
+
         }
         else
         {
@@ -70,6 +150,10 @@ public class Bank : IBank
         {
             fromAccount.Balance -= amount;
             toAccount.Balance += amount;
+
+
+            SaveAccountsState();
+
         }
         else
         {
@@ -82,179 +166,21 @@ public class Bank : IBank
         Console.WriteLine($"Номер счета: {account.AccountNumber}, Владелец: {account.Owner}, Баланс: {account.Balance}");
     }
 
-    // Метод для сохранения состояния счетов в файл
-    public void SaveAccountsToFile(string fileName)
+    public void SaveAccountsState()
     {
-        using (StreamWriter writer = new StreamWriter(fileName))
+        string json = JsonSerializer.Serialize(accounts);
+        File.WriteAllText("accounts.json", json);
+    }
+
+    public void LoadAccountsState()
+    {
+        if (File.Exists("accounts.json"))
         {
-            foreach (var account in accounts)
-            {
-                writer.WriteLine($"{account.AccountNumber},{account.Balance},{account.Owner}");
-            }
+            string json = File.ReadAllText("accounts.json");
+            accounts = JsonSerializer.Deserialize<List<BankAccount>>(json);
         }
     }
 
-    // Метод для загрузки состояния счетов из файла
-    public void LoadAccountsFromFile(string fileName)
-    {
-        if (File.Exists(fileName))
-        {
-            using (StreamReader reader = new StreamReader(fileName))
-            {
-                string line;
-                while ((line = reader.ReadLine()) != null)
-                {
-                    string[] parts = line.Split(',');
-                    if (parts.Length == 3)
-                    {
-                        BankAccount account = new BankAccount
-                        {
-                            AccountNumber = parts[0],
-                            Balance = decimal.Parse(parts[1]),
-                            Owner = parts[2]
-                        };
-                        accounts.Add(account);
-                    }
-                }
-            }
-        }
-    }
-}
 
-public class Program
-{
-    public static void Main()
-    {
-        Bank bank = new Bank();
-        string fileName = "bank_accounts.txt";
 
-        // Загрузка состояния счетов из файла
-        bank.LoadAccountsFromFile(fileName);
-
-        // Консольный интерфейс для взаимодействия с пользователями
-        bool exit = false;
-        while (!exit)
-        {
-            Console.WriteLine("Выберите действие:");
-            Console.WriteLine("1. Создать счет");
-            Console.WriteLine("2. Пополнить счет");
-            Console.WriteLine("3. Снять со счета");
-            Console.WriteLine("4. Перевести средства");
-            Console.WriteLine("5. Показать информацию о счете");
-            Console.WriteLine("6. Выход");
-            Console.Write("Ваш выбор: ");
-            string choice = Console.ReadLine();
-
-            switch (choice)
-            {
-                case "1":
-                    Console.Write("Введите номер счета: ");
-                    string accountNumber = Console.ReadLine();
-                    Console.Write("Введите имя владельца: ");
-                    string owner = Console.ReadLine();
-                    BankAccount newAccount = new BankAccount
-                    {
-                        AccountNumber = accountNumber,
-                        Balance = 0.0m,
-                        Owner = owner
-                    };
-                    bank.OpenAccount(newAccount);
-                    Console.WriteLine("Счет успешно создан.");
-                    break;
-                case "2":
-                    Console.Write("Введите номер счета для пополнения: ");
-                    string accountNumberToDeposit = Console.ReadLine();
-                    BankAccount accountToDeposit = bank.accounts.FirstOrDefault(acc => acc.AccountNumber == accountNumberToDeposit);
-                    if (accountToDeposit != null)
-                    {
-                        Console.Write("Введите сумму для пополнения: ");
-                        if (decimal.TryParse(Console.ReadLine(), out decimal amountToDeposit))
-                        {
-                            bank.Deposit(accountToDeposit, amountToDeposit);
-                            Console.WriteLine("Счет успешно пополнен.");
-                        }
-                        else
-                        {
-                            Console.WriteLine("Некорректная сумма.");
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine("Счет не найден.");
-                    }
-                    break;
-
-                case "3":
-                    Console.Write("Введите номер счета для снятия: ");
-                    string accountNumberToWithdraw = Console.ReadLine();
-                    BankAccount accountToWithdraw = bank.accounts.FirstOrDefault(acc => acc.AccountNumber == accountNumberToWithdraw);
-                    if (accountToWithdraw != null)
-                    {
-                        Console.Write("Введите сумму для снятия: ");
-                        if (decimal.TryParse(Console.ReadLine(), out decimal amountToWithdraw))
-                        {
-                            bank.Withdraw(accountToWithdraw, amountToWithdraw);
-                            Console.WriteLine("Средства успешно сняты со счета.");
-                        }
-                        else
-                        {
-                            Console.WriteLine("Некорректная сумма.");
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine("Счет не найден.");
-                    }
-                    break;
-
-                case "4":
-                    Console.Write("Введите номер счета отправителя: ");
-                    string fromAccountNumber = Console.ReadLine();
-                    Console.Write("Введите номер счета получателя: ");
-                    string toAccountNumber = Console.ReadLine();
-                    BankAccount fromAccount = bank.accounts.FirstOrDefault(acc => acc.AccountNumber == fromAccountNumber);
-                    BankAccount toAccount = bank.accounts.FirstOrDefault(acc => acc.AccountNumber == toAccountNumber);
-
-                    if (fromAccount != null && toAccount != null)
-                    {
-                        Console.Write("Введите сумму для перевода: ");
-                        if (decimal.TryParse(Console.ReadLine(), out decimal transferAmount))
-                        {
-                            bank.Transfer(fromAccount, toAccount, transferAmount);
-                            Console.WriteLine("Средства успешно переведены.");
-                        }
-                        else
-                        {
-                            Console.WriteLine("Некорректная сумма.");
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine("Счет отправителя или получателя не найден.");
-                    }
-                    break;
-                case "5":
-                    Console.Write("Введите номер счета: ");
-                    string accountNumberToShow = Console.ReadLine();
-                    BankAccount accountToShow = bank.accounts.FirstOrDefault(acc => acc.AccountNumber == accountNumberToShow);
-                    if (accountToShow != null)
-                    {
-                        bank.PrintAccountInfo(accountToShow);
-                    }
-                    else
-                    {
-                        Console.WriteLine("Счет не найден.");
-                    }
-                    break;
-                case "6":
-                    // Сохранение состояния счетов в файл перед выходом
-                    bank.SaveAccountsToFile(fileName);
-                    exit = true;
-                    break;
-                default:
-                    Console.WriteLine("Некорректный выбор.");
-                    break;
-            }
-        }
-    }
 }
